@@ -5,6 +5,7 @@ export const lastTrace = {
   res: null as any,
 };
 
+//baseURL
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
   timeout: 8000,
