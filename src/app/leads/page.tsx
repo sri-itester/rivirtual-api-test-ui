@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -6,13 +5,13 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 
 type Lead = {
-  id: string;
+  id: number;
   salutation?: string | null;
   firstName: string;
   lastName: string;
   email?: string | null;
   mobile: string;
-  status: string;
+  leadStage: string;     // <- renamed field
   createdAt: string;
 };
 
@@ -31,7 +30,6 @@ export default function LeadsPage() {
   const [error, setError] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch leads from backend
   useEffect(() => {
     api
       .get("/leads")
@@ -40,18 +38,16 @@ export default function LeadsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Export CSV
   function handleExportCSV() {
     const headers = ["Lead Name", "Email", "Phone", "Lead Stage", "Entry Date"];
     const rows = leads.map((l) => [
       `${l.salutation ? l.salutation + " " : ""}${l.firstName} ${l.lastName}`,
       l.email || "",
       l.mobile,
-      l.status,
+      l.leadStage || "",
       formatDate(l.createdAt),
     ]);
-
-    const csv = [headers, ...rows].map(r => r.join(",")).join("\n");
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -63,10 +59,10 @@ export default function LeadsPage() {
 
   if (loading) return <div className="p-6">Loading...</div>;
   if (error) return <pre className="p-6 text-red-600">{JSON.stringify(error, null, 2)}</pre>;
-  
+
   return (
     <div className="p-6 space-y-4">
-      {/* Header bar */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Leads</h1>
         <div className="flex items-center gap-2">
@@ -88,14 +84,12 @@ export default function LeadsPage() {
               if (fileInputRef.current) fileInputRef.current.value = "";
             }}
           />
-
           <button
             onClick={() => fileInputRef.current?.click()}
             className="px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-50"
           >
             Import (.csv)
           </button>
-
           <button
             onClick={handleExportCSV}
             className="px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-50"
@@ -129,7 +123,7 @@ export default function LeadsPage() {
                 </td>
                 <td className="px-4 py-3">{l.email || "-"}</td>
                 <td className="px-4 py-3">{l.mobile}</td>
-                <td className="px-4 py-3 capitalize">{l.status.toLowerCase()}</td>
+                <td className="px-4 py-3">{l.leadStage || "-"}</td>
                 <td className="px-4 py-3">{formatDate(l.createdAt)}</td>
               </tr>
             ))}
@@ -144,5 +138,5 @@ export default function LeadsPage() {
         </table>
       </div>
     </div>
- );
+  );
 }
