@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -8,13 +7,10 @@ import {
   ArrowLeft,
   EllipsisVertical,
   Phone,
-  Clock,
-  MessageCircle,
   Mail,
-  StickyNote,
-  Trash2,
-  Copy,
   User,
+  Copy,
+  Trash2,
 } from "lucide-react";
 
 type Lead = {
@@ -26,6 +22,11 @@ type Lead = {
   mobile: string;
   leadStage: "Lead" | "Prospect" | "Customer" | "Disqualified" | "Invalid";
   createdAt: string;
+  assignedTo?: {
+    id: number;
+    name: string;
+    email: string;
+  } | null;
 };
 
 export default function LeadDetailPage() {
@@ -54,7 +55,6 @@ export default function LeadDetailPage() {
 
   return (
     <div className="p-5 space-y-5">
-
       {/* Back */}
       <button
         onClick={() => router.push("/leads")}
@@ -64,8 +64,8 @@ export default function LeadDetailPage() {
         Back to Leads
       </button>
 
-      {/* Header + Stage */}
-      <div className="bg-white border rounded-xl p-5 shadow-sm flex justify-between">
+      {/* Header */}
+      <div className="bg-white border rounded-xl p-5 shadow-sm flex justify-between items-start">
         <div>
           <h1 className="text-2xl font-semibold">{displayName}</h1>
           <span className="inline-block mt-1 px-2 py-0.5 text-xs rounded-full bg-green-50 text-green-700 border border-green-200">
@@ -73,20 +73,24 @@ export default function LeadDetailPage() {
           </span>
         </div>
 
-        {/* Menu */}
         <button onClick={() => router.push(`/leads/${lead.id}/edit`)}>
           <EllipsisVertical />
         </button>
       </div>
 
-      {/* Overview Section - CLEANED */}
+      {/* Overview */}
       <div className="bg-white border rounded-xl p-5 shadow-sm">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-
           <Field icon={<User className="w-4 h-4" />} label="Full Name" value={displayName} />
           <Field icon={<Phone className="w-4 h-4" />} label="Mobile" value={lead.mobile} />
           <Field icon={<Mail className="w-4 h-4" />} label="Email" value={lead.email || "-"} />
 
+          {/* ✅ ADDED ASSIGNED TO */}
+          <Field
+            icon={<User className="w-4 h-4" />}
+            label="Assigned To"
+            value={lead.assignedTo?.name || "-"}
+          />
         </div>
       </div>
     </div>

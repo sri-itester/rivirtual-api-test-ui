@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 
+/* ---------------- Types ---------------- */
 type Stage = "Lead" | "Prospect" | "Customer" | "Disqualified" | "Invalid";
 type LeadType = "Buyer" | "Seller" | "Owner" | "Tenant";
 
@@ -28,12 +29,12 @@ type Lead = {
 const STAGES: Stage[] = ["Lead", "Prospect", "Customer", "Disqualified", "Invalid"];
 const TYPES: LeadType[] = ["Buyer", "Seller", "Owner", "Tenant"];
 
+/* --------------- Component --------------- */
 export default function EditLeadPage() {
   const router = useRouter();
   const params = useParams();
 
-  // In client components, useParams returns a plain object (Next 16).
-  // Normalize to a number id:
+  // Normalize id from route
   const leadId = useMemo(() => {
     const raw = (params as any)?.id;
     const s = Array.isArray(raw) ? raw[0] : String(raw ?? "");
@@ -41,11 +42,12 @@ export default function EditLeadPage() {
     return Number.isFinite(n) ? n : NaN;
   }, [params]);
 
+  // UI state
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Form state
+  // Form fields
   const [salutation, setSalutation] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -62,7 +64,7 @@ export default function EditLeadPage() {
   const [city, setCity] = useState("");
   const [stage, setStage] = useState<Stage>("Lead");
 
-  // Load existing lead
+  // Load lead on mount
   useEffect(() => {
     if (!Number.isFinite(leadId)) {
       router.push("/leads");
@@ -97,12 +99,12 @@ export default function EditLeadPage() {
       .finally(() => setLoading(false));
   }, [leadId, router]);
 
-  // Keep WhatsApp in sync if checkbox is on
+  // Keep WhatsApp in sync when checkbox is on
   useEffect(() => {
     if (sameWhatsapp) setWhatsapp(mobile);
   }, [sameWhatsapp, mobile]);
 
-  // Simple required validation for DB-required fields
+  // Validation (enforce required on EDIT)
   const missing: string[] = [];
   if (!firstName.trim()) missing.push("First Name");
   if (!lastName.trim()) missing.push("Last Name");
@@ -126,7 +128,7 @@ export default function EditLeadPage() {
         salutation: salutation || null,
         firstName,
         lastName,
-        email: email || null, // email is optional in DB now
+        email: email || null, // optional
         countryCode,
         mobile,
         whatsapp: (sameWhatsapp ? mobile : whatsapp) || null,
@@ -139,7 +141,7 @@ export default function EditLeadPage() {
         leadStage: stage,
       });
 
-      // Redirect to detail page after save
+      // Redirect back to READ page
       router.push(`/leads/${leadId}`);
     } catch (e: any) {
       const msg = e?.response?.data?.message || e.message || "Failed to save changes.";
@@ -159,14 +161,9 @@ export default function EditLeadPage() {
 
   if (error) {
     return (
-      <div className="p-6">
-        <div className="mb-4 p-3 rounded border border-red-200 bg-red-50 text-red-700">
-          {error}
-        </div>
-        <button
-          onClick={() => router.push("/leads")}
-          className="px-3 py-2 border rounded"
-        >
+      <div className="p-6 space-y-4">
+        <div className="p-3 rounded border border-red-200 bg-red-50 text-red-700">{error}</div>
+        <button onClick={() => router.push("/leads")} className="px-3 py-2 border rounded">
           Back to Leads
         </button>
       </div>
@@ -174,7 +171,7 @@ export default function EditLeadPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-6 max-w-5xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <button
@@ -207,9 +204,7 @@ export default function EditLeadPage() {
       <h1 className="text-2xl font-semibold">Edit Lead</h1>
 
       {/* Contact Information */}
-      <section className="bg-white border rounded-xl p-5 space-y-4">
-        <h2 className="text-lg font-medium">Contact Information</h2>
-
+      <Section title="Contact Information">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Field label="Salutation" value={salutation} onChange={setSalutation} />
 
@@ -232,12 +227,14 @@ export default function EditLeadPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Field label="Country Code" value={countryCode} onChange={setCountryCode} />
+
           <Field
             label="Mobile *"
             value={mobile}
             onChange={setMobile}
             required={!mobile.trim()}
           />
+
           <div>
             <Field
               label="WhatsApp Number"
@@ -255,12 +252,10 @@ export default function EditLeadPage() {
             </label>
           </div>
         </div>
-      </section>
+      </Section>
 
       {/* Additional Details */}
-      <section className="bg-white border rounded-xl p-5 space-y-4">
-        <h2 className="text-lg font-medium">Additional Details</h2>
-
+      <Section title="Additional Details">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <SelectField
             label="Lead Type"
@@ -275,12 +270,10 @@ export default function EditLeadPage() {
           />
           <Field label="Company Name" value={companyName} onChange={setCompanyName} />
         </div>
-      </section>
+      </Section>
 
       {/* Location */}
-      <section className="bg-white border rounded-xl p-5 space-y-4">
-        <h2 className="text-lg font-medium">Location</h2>
-
+      <Section title="Location">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Field
             label="Country *"
@@ -301,11 +294,10 @@ export default function EditLeadPage() {
             required={!city.trim()}
           />
         </div>
-      </section>
+      </Section>
 
       {/* Stage */}
-      <section className="bg-white border rounded-xl p-5 space-y-4">
-        <h2 className="text-lg font-medium">Lead Stage</h2>
+      <Section title="Lead Stage">
         <select
           className="mt-1 border rounded px-3 py-2 w-full"
           value={stage}
@@ -317,7 +309,7 @@ export default function EditLeadPage() {
             </option>
           ))}
         </select>
-      </section>
+      </Section>
 
       {/* Required fields helper */}
       {missing.length > 0 && (
@@ -329,7 +321,16 @@ export default function EditLeadPage() {
   );
 }
 
-/* ---------------- Helper Inputs ---------------- */
+/* --------------- Small UI helpers --------------- */
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="bg-white border rounded-xl p-5 space-y-4">
+      <h2 className="text-lg font-medium">{title}</h2>
+      {children}
+    </section>
+  );
+}
 
 function Field({
   label,
