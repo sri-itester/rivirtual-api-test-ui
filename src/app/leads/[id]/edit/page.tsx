@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-
+import ProtectedRoute from "@/components/ProtectedRoute";
 /* ---------------- Types ---------------- */
 type Stage = "Lead" | "Prospect" | "Customer" | "Disqualified" | "Invalid";
 type LeadType = "Buyer" | "Seller" | "Owner" | "Tenant";
@@ -171,6 +171,7 @@ export default function EditLeadPage() {
   }
 
   return (
+    <ProtectedRoute>
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -318,6 +319,7 @@ export default function EditLeadPage() {
         </div>
       )}
     </div>
+    </ProtectedRoute>
   );
 }
 

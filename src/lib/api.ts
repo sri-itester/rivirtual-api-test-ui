@@ -5,21 +5,22 @@ export const lastTrace = {
   res: null as any,
 };
 
-//baseURL
+// baseURL
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001",
   timeout: 8000,
 });
 
 // Capture request
 api.interceptors.request.use((config) => {
-  // Attach JWT token if exists
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
 
-  // Keep lastTrace logging
+  // Debug trace
   lastTrace.req = {
     url: config.url,
     method: config.method,
@@ -39,10 +40,17 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
+    // If unauthorized → redirect to login
+    if (error.response?.status === 401 && typeof window !== "undefined") {
+      localStorage.removeItem("token");
+      window.location.href = "/login";
+    }
+
     lastTrace.res = {
       status: error.response?.status,
       data: error.response?.data || error.message,
     };
+
     return Promise.reject(error);
   }
 );
