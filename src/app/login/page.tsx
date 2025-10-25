@@ -24,7 +24,7 @@ export default function LoginPage() {
       const res = await api.post("/login", { email, password });
       localStorage.setItem("token", res.data.token);
       toast.success("Welcome back!");
-      router.push("/leads");
+      router.push("/dashboard");
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Invalid credentials");
     } finally {
