@@ -50,7 +50,7 @@ export default function HomePage() {
             </p>
             <div className="flex gap-3 justify-center">
               <button
-                onClick={() => router.push("/leads")}
+                onClick={() => router.push("/dashboard")}
                 className="px-5 py-2 bg-rivGreen text-white rounded-md hover:bg-rivGreenDark transition"
               >
                 Go to Dashboard

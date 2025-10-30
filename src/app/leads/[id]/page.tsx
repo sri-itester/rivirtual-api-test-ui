@@ -22,7 +22,6 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 
-/* ---------------------- Types ---------------------- */
 type LeadStage = "Lead" | "Prospect" | "Customer" | "Disqualified" | "Invalid";
 type ActivityType = "NOTE" | "CALL" | "SMS" | "WHATSAPP" | "EMAIL" | "TASK";
 
@@ -46,7 +45,6 @@ interface Activity {
   performedBy?: { name: string };
 }
 
-/* ---------------------- Component ---------------------- */
 export default function LeadDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -59,9 +57,12 @@ export default function LeadDetailPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [modal, setModal] = useState<null | ActivityType>(null);
   const [input, setInput] = useState("");
+  const [subject, setSubject] = useState("");
   const [taskTime, setTaskTime] = useState<Date | null>(new Date());
 
-  /* ---------------------- Fetch Lead + Activities ---------------------- */
+  // 🧩 NEW: Track current integration mode (Manual / Cloud / AiSensy)
+  const [integrationMode, setIntegrationMode] = useState("MANUAL");
+
   useEffect(() => {
     async function fetchData() {
       try {
@@ -81,7 +82,14 @@ export default function LeadDetailPage() {
     fetchData();
   }, [leadId]);
 
-  /* ---------------------- Actions ---------------------- */
+  // 🧩 NEW: Fetch integration mode once
+  useEffect(() => {
+    api
+      .get("/integrations/config")
+      .then((res) => setIntegrationMode(res.data.provider || "MANUAL"))
+      .catch(() => setIntegrationMode("MANUAL"));
+  }, []);
+
   async function logActivity(type: ActivityType, content: any) {
     try {
       const res = await api.post(`/leads/${leadId}/activities`, { type, content });
@@ -126,20 +134,72 @@ export default function LeadDetailPage() {
           }
           break;
         case "WHATSAPP":
-          window.open(`https://wa.me/${number}?text=${encodedMsg}`, "_blank");
-          await logActivity("WHATSAPP", { to: number, message: input });
-          toast.success("WhatsApp logged");
+          try {
+            const res = await api.post("/integrations/whatsapp", {
+              leadId: lead.id,
+              to: number,
+              message: input,
+            });
+
+            const mode = res.data?.mode || "MANUAL";
+
+            if (mode === "MANUAL") {
+              window.open(`https://wa.me/${number}?text=${encodeURIComponent(input)}`, "_blank");
+              toast.success("WhatsApp opened in manual mode");
+            } else if (mode === "CLOUD") {
+              toast.success("Message sent via Meta Cloud API ✅");
+            } else if (mode === "AISENSY") {
+              toast.success("Message sent via AiSensy API ✅");
+            } else {
+              toast("Message sent successfully");
+            }
+
+          } catch (err) {
+            toast.error("Failed to send WhatsApp message");
+            console.error(err);
+          }
           break;
+
         case "SMS":
-          window.open(`sms:${number}?body=${encodedMsg}`, "_blank");
+        try {
+          await api.post("/integrations/sms", {
+            leadId: lead.id,
+            to: number.startsWith("+") ? number : `+91${number}`, // adjust as needed
+            message: input,
+          });
+
           await logActivity("SMS", { to: number, message: input });
-          toast.success("SMS logged");
-          break;
+          toast.success("SMS sent via Twilio ✅");
+        } catch (err) {
+          toast.error("Failed to send SMS");
+          console.error(err);
+        }
+        break;
+
+
         case "EMAIL":
-          window.open(`mailto:${email || ""}?subject=Lead%20Followup&body=${encodedMsg}`, "_blank");
-          await logActivity("EMAIL", { to: email, subject: "Lead Followup", body: input });
-          toast.success("Email logged");
-          break;
+        if (!subject.trim()) {
+          toast.error("Please enter a subject");
+          return;
+        }
+
+        try {
+          await api.post("/integrations/email", {
+            leadId: lead.id,
+            to: email,
+            subject,
+            body: input,
+          });
+
+          await logActivity("EMAIL", { to: email, subject, body: input });
+          toast.success("Email sent via Resend API");
+        } catch (err) {
+          toast.error("Failed to send email");
+          console.error(err);
+        }
+        break;
+
+
         case "NOTE":
           await logActivity("NOTE", { text: input });
           toast.success("Note added");
@@ -153,25 +213,17 @@ export default function LeadDetailPage() {
     }
   }
 
-  /* ---------------------- Helpers ---------------------- */
   const now = new Date();
 
   const filteredActivities =
     activeTab === "tasks"
       ? activities
           .filter((a) => a.type === "TASK")
-          .sort(
-            (a, b) =>
-              new Date(a.content.when).getTime() - new Date(b.content.when).getTime()
-          )
+          .sort((a, b) => new Date(a.content.when).getTime() - new Date(b.content.when).getTime())
       : activities
           .filter((a) => a.type !== "TASK")
-          .sort(
-            (a, b) =>
-              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          );
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  /* ---------------------- UI ---------------------- */
   if (loading) return <div className="p-6">Loading...</div>;
   if (!lead) return <div className="p-6">Lead not found</div>;
 
@@ -206,31 +258,34 @@ export default function LeadDetailPage() {
 
           {/* Menu */}
           <div className="relative">
-            <button
-              onClick={() => setMenuOpen((v) => !v)}
-              className="p-2 rounded hover:bg-gray-100"
-            >
+            <button onClick={() => setMenuOpen((v) => !v)} className="p-2 rounded hover:bg-gray-100">
               <EllipsisVertical />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 mt-2 bg-white border rounded shadow-lg z-10 w-40">
+              <div className="absolute right-0 mt-2 bg-white border rounded shadow-lg z-10 w-44">
                 <button
                   className="w-full text-left px-3 py-2 hover:bg-gray-50"
                   onClick={() => router.push(`/leads/${lead.id}/edit`)}
                 >
-                  ✏️ Edit Lead
+                  Edit Lead
                 </button>
+
+                <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={copyLink}>
+                  Copy Link
+                </button>
+
                 <button
                   className="w-full text-left px-3 py-2 hover:bg-gray-50"
-                  onClick={copyLink}
+                  onClick={() => router.push("/settings/integrations")}
                 >
-                  📋 Copy Link
+                  Settings
                 </button>
+
                 <button
                   className="w-full text-left px-3 py-2 text-red-600 hover:bg-red-50"
                   onClick={handleDelete}
                 >
-                  🗑️ Delete
+                  Delete
                 </button>
               </div>
             )}
@@ -283,21 +338,15 @@ export default function LeadDetailPage() {
               const isTask = a.type === "TASK";
               const isOverdue = isTask && when && when < now;
               const isToday =
-                isTask &&
-                when &&
-                Math.abs(when.getTime() - now.getTime()) < 6 * 60 * 60 * 1000;
+                isTask && when && Math.abs(when.getTime() - now.getTime()) < 6 * 60 * 60 * 1000;
 
               return (
                 <div
                   key={a.id}
-                  className={`rounded-lg p-3 border ${
-                    isTask ? "bg-gray-50" : "bg-white"
-                  }`}
+                  className={`rounded-lg p-3 border ${isTask ? "bg-gray-50" : "bg-white"}`}
                 >
                   <div className="flex justify-between items-center text-sm font-medium">
-                    <span>
-                      {isTask ? "📅 Task" : "🗒️ " + a.type}
-                    </span>
+                    <span>{isTask ? "📅 Task" : "🗒️ " + a.type}</span>
                     <span className="text-xs text-gray-500">
                       {format(new Date(a.createdAt), "MMM d, yyyy h:mm a")}
                     </span>
@@ -315,18 +364,15 @@ export default function LeadDetailPage() {
                       <div>
                         {isOverdue ? (
                           <span className="text-red-600 flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3" /> Overdue (
-                            {format(when, "MMM d, h:mm a")})
+                            <AlertTriangle className="w-3 h-3" /> Overdue ({format(when, "MMM d, h:mm a")})
                           </span>
                         ) : isToday ? (
                           <span className="text-amber-600 flex items-center gap-1">
-                            <CalendarClock className="w-3 h-3" /> Today (
-                            {format(when, "h:mm a")})
+                            <CalendarClock className="w-3 h-3" /> Today ({format(when, "h:mm a")})
                           </span>
                         ) : (
                           <span className="text-green-600 flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" /> Upcoming (
-                            {format(when, "MMM d, h:mm a")})
+                            <CheckCircle2 className="w-3 h-3" /> Upcoming ({format(when, "MMM d, h:mm a")})
                           </span>
                         )}
                       </div>
@@ -338,10 +384,7 @@ export default function LeadDetailPage() {
                             text: `✅ Task completed (${a.content?.note || ""})`,
                           });
                           toast.success("Task marked as done");
-                          // remove from UI immediately
-                          setActivities((prev) =>
-                            prev.filter((t) => t.id !== a.id)
-                          );
+                          setActivities((prev) => prev.filter((t) => t.id !== a.id));
                         }}
                       >
                         Mark as Done
@@ -358,10 +401,17 @@ export default function LeadDetailPage() {
         {modal && modal !== "CALL" && (
           <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl p-5 w-full max-w-md">
-              <h3 className="text-lg font-semibold mb-3">
+              <h3 className="text-lg font-semibold mb-2">
                 {modal === "TASK" ? "Schedule Task" : `New ${modal}`}
               </h3>
 
+              {/* 🧩 NEW: Show integration mode inside modal */}
+              {modal === "WHATSAPP" && (
+                <p className="text-xs text-gray-500 mb-2">
+                  Using integration:{" "}
+                  <span className="font-semibold text-gray-800">{integrationMode}</span>
+                </p>
+              )}
               {modal === "TASK" ? (
                 <div className="space-y-3">
                   <label className="text-sm text-gray-500">When</label>
@@ -380,6 +430,22 @@ export default function LeadDetailPage() {
                     onChange={(e) => setInput(e.target.value)}
                   />
                 </div>
+              ) : modal === "EMAIL" ? (
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    placeholder="Enter subject"
+                    className="border rounded w-full p-2 text-sm"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                  />
+                  <textarea
+                    placeholder="Enter email body..."
+                    className="border rounded w-full p-2 text-sm h-28"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                  />
+                </div>
               ) : (
                 <textarea
                   placeholder="Enter message or note..."
@@ -389,11 +455,9 @@ export default function LeadDetailPage() {
                 />
               )}
 
+
               <div className="flex justify-end gap-3 mt-4">
-                <button
-                  className="px-3 py-2 border rounded"
-                  onClick={() => setModal(null)}
-                >
+                <button className="px-3 py-2 border rounded" onClick={() => setModal(null)}>
                   Cancel
                 </button>
                 <button
@@ -411,7 +475,6 @@ export default function LeadDetailPage() {
   );
 }
 
-/* ---------------------- Reusable ---------------------- */
 function Field({ label, value }: { label: string; value: any }) {
   return (
     <div>
